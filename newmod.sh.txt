@@ -1,17 +1,30 @@
 repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs"
+
 [ -f repolist.txt ] \
   || wget -q -O - "$repo" \
       |sed -n 's/.*href="\(.*\.pfs\)".*/\1/p' \
       >repolist.txt
-splitname(){  # Vlc-p-2.2.1-s03.pfs -> Vlc-p-.*.pfs 2.2.1-s03
-  local name ver
-  ver=$(echo "$1" |grep -oE '[_-]([A-z]{,2}[0-9][a-z0-9]*[_.+-])+')
-  ver=${ver%?}
-  ver=${ver#?}
-  ver=$(echo $ver |sed 's/ /.*/g')
-  export $2=$(echo "$1" |sed 's/\(.*\)'$ver'\(.*\)\.pfs/\1.*\2\\.pfs/')
-  export $3=$ver
+
+splitname(){
+  local ver sver
+  ver=$(echo "$1" \
+        |sed 's/i[3-6]86\|x86[_-]64\|x64\|[Xx][Ff][_-]\?86\|[Qq][Tt]4/masq/g' \
+        |grep -oE '[_-]([A-z]{,2}[0-9][a-z0-9]*[_.+-])+')
+  local re1='\(.*\)' re2='\1' n=1 partver
+  for partver in $ver ; do
+     n=$(($n+1))
+     partver=${partver%?}
+     partver=${partver#?}
+     re1="${re1}$partver\\(.*\\)"
+     re2="${re2}.*\\$n"
+     sver="${sver}${sver:+-}$partver"
+  done
+  export $2=$(echo "$1" |sed 's/'$re1'\.pfs/'$re2'\\.pfs/')
+  export $3=$sver
 }
+
+neverthem(){ [ $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
+
 ls -1 /sys/fs/aufs/*/br[0-9]* \
  | while read branch ; do
       branchDir=$(cat $branch)
@@ -28,4 +41,4 @@ ls -1 /sys/fs/aufs/*/br[0-9]* \
              echo -----------
            fi
          done
-   done 
+   done
