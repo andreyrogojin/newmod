@@ -5,7 +5,7 @@ repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs
       >repolist.txt
 splitname(){  # Vlc-p-2.2.1-s03.pfs -> Vlc-p-.*.pfs 2.2.1-s03
   local name ver
-  ver=$(echo "$1" |grep -oE '[_-]([A-z]?[0-9]+[_.+-])+')
+  ver=$(echo "$1" |grep -oE '[_-]([A-z]{,2}[0-9][a-z0-9]*[_.+-])+')
   ver=${ver%?}
   ver=${ver#?}
   ver=$(echo $ver |sed 's/ /.*/g')
@@ -18,6 +18,7 @@ ls -1 /sys/fs/aufs/*/br[0-9]* \
       pfsname=$(basename ${branchDir%=r*})
       pfsname=${pfsname#.}
       splitname $pfsname modname modver
+#      echo "  $pfsname $modname $modver"
       grep "$modname" repolist.txt |grep -v "$pfsname" \
        | while read similarpfs ; do
            splitname "$similarpfs" rname rver
