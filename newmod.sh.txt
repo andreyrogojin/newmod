@@ -5,6 +5,8 @@ repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs
       |sed -n 's/.*href="\(.*\.pfs\)".*/\1/p' \
       >repolist.txt
 
+# splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
+# пример: splitname $pfsname modname modver
 splitname(){
   local ver sver
   ver=$(echo "$1" \
@@ -23,22 +25,26 @@ splitname(){
   export $3=$sver
 }
 
-neverthem(){ [ $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
+# newer <версия1> <версия2> - версия1 больше/новее версии2 ?
+newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
 
-ls -1 /sys/fs/aufs/*/br[0-9]* \
- | while read branch ; do
-      branchDir=$(cat $branch)
+cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
+ | while read branchDir ; do
       pfsname=$(basename ${branchDir%=r*})
       pfsname=${pfsname#.}
       splitname $pfsname modname modver
 #      echo "  $pfsname $modname $modver"
-      grep "$modname" repolist.txt |grep -v "$pfsname" \
-       | while read similarpfs ; do
-           splitname "$similarpfs" rname rver
-           if [ "$modname" == "$rname" -a "$modver" != "$rver" ] ; then
-             echo "$pfsname"
-             echo "$similarpfs"
-             echo -----------
-           fi
-         done
+      newmod=$(grep "$modname" repolist.txt |grep -v "$pfsname" \
+        | while read similarpfs || { echo "$newmod"; false; }; do
+            splitname "$similarpfs" rname rver
+#            echo ">> $similarpfs $rname $rver"
+            [ "$modname" == "$rname" ] && 
+               { [ "allfile" ] &&
+                 { [ "$modver" != "$rver" ] \
+                   && newmod="${newmod}${newmod:+$'\n'}$similarpfs"; } ||
+                 { newer "$rver" "$modver" \
+                   && modver="$rver" && newmod="$similarpfs"; }
+               }
+          done)
+      [ "$newmod" ] && echo "$pfsname" && echo "$newmod" && echo "-----" && newmod=""
    done
