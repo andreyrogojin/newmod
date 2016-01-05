@@ -1,0 +1,75 @@
+#!/bin/bash
+
+repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs"
+
+[ -s repolist.txt ] \
+  || wget -q -O - "$repo" \
+      |sed -n 's/.*href="\(.*\.pfs\)".*/\1/p' \
+      >repolist.txt
+
+# splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
+# пример: splitname $pfsname modname modver
+splitname(){
+  local ver sver
+  ver=$(echo "$1" \
+        |sed 's/i[3-6]86\|x86[_-]64\|x64\|[Xx][Ff][_-]\?86\|[Qq][Tt]4/masq/g' \
+        |grep -oE '[_-]([A-z]{,2}[0-9][a-z0-9]*[_.+-])+')
+  local re1='\(.*\)' re2='\1' n=1 partver
+  for partver in $ver ; do
+     n=$(($n+1))
+     partver=${partver%?}
+     partver=${partver#?}
+     re1="${re1}$partver\\(.*\\)"
+     re2="${re2}.*\\$n"
+     sver="${sver}${sver:+-}$partver"
+  done
+  export $2=$(echo "$1" |sed 's/'$re1'\.pfs/'$re2'\\.pfs/')
+  export $3=$sver
+}
+
+# newer <версия1> <версия2> - версия1 больше/новее версии2 ?
+newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
+
+modtable(){
+  cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
+   | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
+   | sort \
+   | while read pfsname ; do
+        splitname $pfsname modname modver
+        for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
+           splitname "$similarpfs" rname rver
+           [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
+              { modver="$rver"
+                newmod="$similarpfs"
+              }
+        done
+        [ "$newmod" ] && {
+           echo "<hbox space-expand=\"false\">"
+           echo "  <text space-expand=\"true\"><label>$pfsname</label></text>"
+           echo "  <checkbox space-expand=\"false\">"
+           echo "    <label>заменить на</label>"
+           echo "    <variable>CHECK_$newmod</variable>"
+           echo "  </checkbox>"
+           echo "  <text space-expand=\"true\"><label>$newmod</label></text>"
+           echo "</hbox>"
+           newmod=""
+        }
+     done
+}
+
+export MAIN_DIALOG="
+<window>
+<vbox>
+  <hbox>
+    <text><label>Подключенные модули можно обновить</label></text>
+  </hbox>
+  $(modtable "$1")
+  <hbox>
+    <button ok></button>
+    <button cancel></button>
+  </hbox>
+</vbox>
+</window>
+"
+
+gtkdialog -p MAIN_DIALOG
