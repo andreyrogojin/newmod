@@ -2,13 +2,6 @@
 
 repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs"
 
-while getopts "a" opt; do
-  case $opt in
-    "a" ) allfile="yes" ;;
-  esac
-done
-shift $(( $OPTIND - 1 ))
-
 [ -s repolist.txt ] \
   || wget -q -O - "$repo" \
       |sed -n 's/.*href="\(.*\.pfs\)".*/\1/p' \
@@ -38,26 +31,30 @@ splitname(){
 newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
 
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
- | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
- | sort \
- | while read pfsname ; do
-      splitname $pfsname modname modver
-#      echo "  $pfsname $modname $modver"
-      for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
-         splitname "$similarpfs" rname rver
-#         echo ">> $similarpfs $rname $rver"
-         [ "$modname" == "$rname" ] &&
-            { [ "$allfile" ] &&
-                 { [ "$modver" != "$rver" ] \
-                   && newmod="${newmod}${newmod:+$'\n'}$similarpfs"; } ||
-                 { newer "$rver" "$modver" \
-                   && modver="$rver" && newmod="$similarpfs"; }
-            }
-      done
-      [ "$newmod" ] && {
-         echo "$pfsname"
-         echo "$newmod" | sort -V
-         echo "-----"
-         newmod=""
-      }
-   done
+   | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
+   | sort \
+   | while read pfsname ; do
+        splitname $pfsname modname modver
+        for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
+           splitname "$similarpfs" rname rver
+           [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
+              { modver="$rver"
+                newmod="$similarpfs"
+              }
+        done
+        [ "$newmod" ] && {
+           echo "false"
+           echo "$pfsname"
+           echo "$newmod"
+           newmod=""
+        }
+     done \
+   | yad --title "Обновление модулей" \
+         --height=340 --width=600 \
+         --text "Следующие модули могут быть обновлены:" \
+         --list --checklist \
+         --separator= \
+         --column=:IMG \
+         --column="Установлен" \
+         --column="В репозитории" \
+         --print-column=3

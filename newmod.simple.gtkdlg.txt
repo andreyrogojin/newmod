@@ -13,7 +13,7 @@ splitname(){
   local ver sver
   ver=$(echo "$1" \
         |sed 's/i[3-6]86\|x86[_-]64\|x64\|[Xx][Ff][_-]\?86\|[Qq][Tt]4/masq/g' \
-        |grep -oE '[_-]([A-z]{,2}[0-9][a-z0-9]*[_.+-])+')
+        |grep -oE '[_-]([A-Za-z]{0,2}[0-9][a-z0-9]*[_.+-])+')
   local re1='\(.*\)' re2='\1' n=1 partver
   for partver in $ver ; do
      n=$(($n+1))
@@ -45,12 +45,14 @@ modtable(){
         done
         [ "$newmod" ] && {
            echo "<hbox space-expand=\"false\">"
-           echo "  <text space-expand=\"true\"><label>$pfsname</label></text>"
            echo "  <checkbox space-expand=\"false\">"
-           echo "    <label>заменить на</label>"
+           echo "    <label>до:</label>"
            echo "    <variable>CHECK_$newmod</variable>"
            echo "  </checkbox>"
-           echo "  <text space-expand=\"true\"><label>$newmod</label></text>"
+           echo "  <vbox space-expand=\"true\" space-fill=\"true\">"
+           echo "  <text use-markup=\"true\"><label>\"<tt>$(printf "%-48s" $pfsname)</tt>\"</label></text>"
+           echo "  <text use-markup=\"true\"><label>\"<tt>$(printf "%-48s" $newmod)</tt>\"</label></text>"
+           echo "  </vbox>"
            echo "</hbox>"
            newmod=""
         }
@@ -58,13 +60,15 @@ modtable(){
 }
 
 export MAIN_DIALOG="
-<window>
+<window width-request=\"600\">
 <vbox>
   <hbox>
-    <text><label>Подключенные модули можно обновить</label></text>
+    <text space-expand=\"true\" use-markup=\"true\">
+      <label>\"<b> Следующие подключенные модули можно обновить:</b>\"</label>
+    </text>
   </hbox>
   $(modtable "$1")
-  <hbox>
+  <hbox space-expand=\"true\">
     <button ok></button>
     <button cancel></button>
   </hbox>
