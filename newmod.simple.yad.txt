@@ -1,9 +1,8 @@
 #!/bin/bash
 
-repo="http://www.puppyrus.org/~melvik/puppyrus/ftp/puppyrus/puppyrus-a/pra03/pfs"
+repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update"
-reportmess=""
 
 # splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
 # пример: splitname $pfsname modname modver
@@ -21,55 +20,118 @@ splitname(){
      re2="${re2}.*\\$n"
      sver="${sver}${sver:+-}$partver"
   done
-  export $2=$(echo "$1" |sed 's/'$re1'\.pfs/'$re2'\\.pfs/')
-  export $3=$sver
+  declare -g $2=$(echo "$1" |sed 's/'$re1'\.pfs/'$re2'\\.pfs/')
+  declare -g $3=$sver
 }
 
 # newer <версия1> <версия2> - версия1 больше/новее версии2 ?
 newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
 
+INFORM="yad --text-info --title=\"Справка\" \
+--width=480 --height=401 --button=gtk-ok <<.END
+Отметьте какие модули вы хотите обновить и нажмите OK.
+Модули будут загружены из репозитория и перенесены
+туда же, где находятся старые.
+Старые модули не удаляются, а получают расширение .old,
+при необходимости вы их сможете вернуть.
+
+Если директория системы недоступна (например, система
+загружена в память и флешка отмонтирована),
+загруженные файлы будут оставлены в $tmpdir
+в таком случае перенесите их куда нужно вручную.
+
+Для того, чтобы новые модули были подключены
+к системе необходимо перезагрузиться, или отключить
+старый модуль и подключить новый вручную.
+(Старый модуль может быть занят, в таком случае
+отключить его не получится).
+
+Примечание.  Данная программа проверяет наличие
+обновлений только тех модулей, которые сейчас подключены.
+.END"
+
 # START
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 cd "$tmpdir"
+rm -f *.html repolist.txt newmodfound 2>/dev/null
+[ "$(ls *.html repolist.txt newmodfound 2>/dev/null)" ] &&
+         { echo "Не могу удалить временные файлы в $tmpdir"; exit 1; }
 
-wget -O >(sed -n 's/.*href="\(.*\.pfs\)".*/\1/p' >repolist.txt) "$repo" 2>&1 \
-   |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
-   |yad --progress --title="Загрузка списка репозитория" \
-        --height=200 --width=500 \
-        --auto-close --auto-kill --enable-log --log-expanded
+for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
+  wget -O index.html "$repo" 2>&1
+  sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
+          s|.*href="\(.*\.pfs\)".*|'$repo'/\1|p' index.html \
+    | while read string ; do
+          echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
+      done >>repolist.txt
+  rm index.html
+done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
+     | yad --progress --pulsate \
+           --title="Загрузка списка файлов репозиториев" \
+           --height=300 --width=600 --center \
+           --auto-close --auto-kill --enable-log --log-expanded
 
+unset newmod reportmess
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
    | while read pfsname ; do
         splitname $pfsname modname modver
         for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
-           splitname "$similarpfs" rname rver
+           splitname $(basename "$similarpfs") rname rver
            [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
               { modver="$rver"
                 newmod="$similarpfs"
+                # echo "$newmod" >&2
               }
         done
         [ "$newmod" ] && {
+           # если модуль есть в нескольких репозиториях - возьмем из первого по списку
+           newmod=$(grep -m 1 $(basename "$newmod") repolist.txt)
            echo "false"
            echo "$pfsname"
+           basename "$newmod"
            echo "$newmod"
            newmod=""
         }
-     done \
-   | yad --title "Обновление модулей" \
-         --height=340 --width=600 \
-         --text "Следующие модули могут быть обновлены:" \
-         --list --checklist \
-         --separator="\n" \
-         --column=:CHK \
-         --column="Установлен" \
-         --column="В репозитории" \
-         --print-column=0 \
-   | while read null && read oldmod && read newmod && read null; do
-       wget -c --progress=dot "${repo}/${newmod}" 2>&1 \
+     done >newmodfound
+
+if [ -s newmodfound ] ; then
+cat newmodfound | yad --title "Обновление модулей" \
+                  --height=340 --width=600 --center \
+                  --text "Следующие модули могут быть обновлены:" \
+                  --list --checklist \
+                  --separator="\n" \
+                  --column=:CHK \
+                  --column="Установлен" \
+                  --column="В репозитории" \
+                  --column="URL" \
+                  --hide-column=4 \
+                  --print-column=0 \
+                  --button=gtk-ok --button=gtk-cancel \
+                  --button=gtk-help:"/bin/sh -c \"$INFORM\""
+else
+    ntf -w "Обновленых модулей не найдено"
+    exit 0
+fi \
+   | while read null &&
+           read oldmod &&
+           read newmod &&
+           read newmod_url &&
+           read null; do
+       foundlocal=$(for i in $(find "$sysdir" -mindepth 2 -type f -name "$newmod")
+                    do dirname $i; done)
+       [ "$foundlocal" ] &&
+          { echo "$newmod уже находится в" $foundlocal
+            echo "$foundlocal" |grep -qE '/base|/modules' \
+               && echo "Перегрузите систему для подключения" \
+               || echo "Вы можете его подключить"
+            continue
+          }
+       wget -c --progress=dot "${newmod_url}" 2>&1 \
        |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
-       |yad --progress --title="Загрузка $newmod" --height=200 --width=500 \
+       |yad --progress --title="Загрузка $newmod" \
+            --height=200 --width=500 --center \
             --auto-close --auto-kill --enable-log #--log-expanded
        wget_status="${PIPESTATUS[0]}"
        [ $wget_status -gt 0 ] &&
@@ -98,13 +160,13 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
        [ "$copied" ] && rm "$newmod"
      done \
      | while read mess \
-             || { rm repolist.txt
-                  files=$(ls -1)
+             || { rm newmodfound
+                  files=$(ls -1 -I repolist.txt)
                   [ "$files" ] &&
                     { reportmess="$reportmess\nСледующие модули были загружены, но не перенесены в директорию системы.\nПеренесите их вручную из $tmpdir"
                       reportmess="$reportmess\n$files"
                     }
-                  [ "$reportmess" ] && ntf -w "Отчет" "$reportmess"
+                  [ "$reportmess" ] && ntf -w "Отчет" "$reportmess" "\nЧтобы измеения вступили в силу, перезагрузите систему."
                   false
                 }
        do
