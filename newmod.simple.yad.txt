@@ -53,10 +53,16 @@ INFORM="yad --text-info --title=\"Справка\" \
 # START
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 cd "$tmpdir"
-rm -f *.html repolist.txt newmodfound 2>/dev/null
-[ "$(ls *.html repolist.txt newmodfound 2>/dev/null)" ] &&
+rm -f *.html newmodfound 2>/dev/null
+[ "$(ls *.html newmodfound 2>/dev/null)" ] &&
          { echo "Не могу удалить временные файлы в $tmpdir"; exit 1; }
 
+if [ ! -s repolist.txt ] ||
+   [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -gt 1800 ]; then
+  [ -e repolist.txt ] &&
+    { rm -f repolist.txt 2>/dev/null ||
+      { echo "Не могу удалить старый $tmpdir/repolist.txt"; exit 1; }
+    }
 for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
   wget -O index.html "$repo" 2>&1
   sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
@@ -70,8 +76,12 @@ done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
            --title="Загрузка списка файлов репозиториев" \
            --height=300 --width=600 --center \
            --auto-close --auto-kill --enable-log --log-expanded
+fi
 
 unset newmod reportmess
+yad --text="<b>Идет поиск обновлений...</b>" \
+    --center --no-buttons --undecorated &
+notewin=$!
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
@@ -95,6 +105,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            newmod=""
         }
      done >newmodfound
+kill $notewin
 
 if [ -s newmodfound ] ; then
 cat newmodfound | yad --title "Обновление модулей" \
@@ -119,13 +130,18 @@ fi \
            read newmod &&
            read newmod_url &&
            read null; do
-       foundlocal=$(for i in $(find "$sysdir" -mindepth 2 -type f -name "$newmod")
-                    do dirname $i; done)
-       [ "$foundlocal" ] &&
-          { echo "$newmod уже находится в" $foundlocal
-            echo "$foundlocal" |grep -qE '/base|/modules' \
-               && echo "Перегрузите систему для подключения" \
-               || echo "Вы можете его подключить"
+       foundinlocaldir=$(for i in $(find "$sysdir" -mindepth 2 -type f -name "$newmod")
+                         do dirname $i; done)
+       [ "$foundinlocaldir" ] &&
+          { echo "$newmod уже находится в" $foundinlocaldir
+            msg="Вы можете его подключить"
+            for i in $foundinlocaldir; do
+              echo "$i" | grep -qE '/base|/modules' \
+              && { [ -e "$i/$oldmod" ] && mv "$i/$oldmod" "$i/${oldmod}.old"
+                   msg="Перегрузите систему для подключения"
+                 }
+            done
+            echo "$msg"
             continue
           }
        wget -c --progress=dot "${newmod_url}" 2>&1 \
@@ -142,20 +158,17 @@ fi \
        copied=""
        for oldmod_fp in $(find "$sysdir" -mindepth 2 -type f -name "$oldmod")
        do oldmod_dir=$(dirname "$oldmod_fp")
-          mv "$oldmod_fp" "${oldmod_fp}.old" &&
-             { echo "$oldmod_fp ==> ${oldmod}.old"
-               echo "$datetime" >>"${oldmod_dir}/update.log"
-               echo "${oldmod} ==> ${oldmod}.old" >>"${oldmod_dir}/update.log"
-             } \
-          && cp "$newmod" "$oldmod_dir" &&
+          cp "$newmod" "$oldmod_dir" &&
                { copied="yes"
                  echo "$newmod ==> $oldmod_dir"
+                 echo "$datetime" >>"${oldmod_dir}/update.log"
                  echo "$newmod added" >>"${oldmod_dir}/update.log"
                } \
-          || { echo "$newmod не удалось перенести в ${oldmod_dir}"
-               [ -f "${oldmod_fp}.old" -a ! -f "$oldmod_fp"  ] &&
-                  mv "${oldmod_fp}.old" "$oldmod_fp"
-             }
+          && mv "$oldmod_fp" "${oldmod_fp}.old" &&
+               { echo "${oldmod_dir}\n${oldmod} ==> ${oldmod}.old"
+                 echo "${oldmod} ==> ${oldmod}.old" >>"${oldmod_dir}/update.log"
+               } \
+          ||  echo "$newmod не удалось перенести в ${oldmod_dir}"
        done
        [ "$copied" ] && rm "$newmod"
      done \
