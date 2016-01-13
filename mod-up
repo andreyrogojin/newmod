@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#160113 sfs ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update"
@@ -26,30 +26,19 @@ splitname(){
 
 # newer <версия1> <версия2> - версия1 больше/новее версии2 ?
 newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
+HELP(){
+ntf -w 'Проверка наличия в репозитории обновлений подключенных модулей.pfs.' \
+'
+Свежий модуль, по Вашему выбору, будет загружены в директорию с устаревшим модулем.
+Устаревший модуль переименовывается в *.old.
 
-INFORM="yad --text-info --title=\"Справка\" \
---width=480 --height=401 --button=gtk-ok <<.END
-Отметьте какие модули вы хотите обновить и нажмите OK.
-Модули будут загружены из репозитория и перенесены
-туда же, где находятся старые.
-Старые модули не удаляются, а получают расширение .old,
-при необходимости вы их сможете вернуть.
+Если эта директория недоступна для записи - загруженные свежие модули останутся в $tmpdir
+Перенесите их вручную.
 
-Если директория системы недоступна (например, система
-загружена в память и флешка отмонтирована),
-загруженные файлы будут оставлены в $tmpdir
-в таком случае перенесите их куда нужно вручную.
-
-Для того, чтобы новые модули были подключены
-к системе необходимо перезагрузиться, или отключить
-старый модуль и подключить новый вручную.
-(Старый модуль может быть занят, в таком случае
-отключить его не получится).
-
-Примечание.  Данная программа проверяет наличие
-обновлений только тех модулей, которые сейчас подключены.
-.END"
-
+Чтобы изменения вступили в силу - перезагрузите систему' 
+#$0 &
+#exit
+}
 # START
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 cd "$tmpdir"
@@ -73,13 +62,17 @@ for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
   rm index.html
 done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
      | yad --progress --pulsate \
+	   --window-icon="gtk-refresh" \
            --title="Загрузка списка файлов репозиториев" \
            --height=300 --width=600 --center \
            --auto-close --auto-kill --enable-log --log-expanded
 fi
 
 unset newmod reportmess
-num=0
+#yad --text="<b>Идет поиск обновлений...</b>" \
+#    --center --no-buttons --undecorated &
+#notewin=$!
+wt -start "Поиск обновлений загруженных модулей.pfs" &
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
@@ -102,31 +95,35 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            echo "$newmod"
            newmod=""
         }
-        num=$(($num+1))
-        echo "#Проверено $num" >&2
-     done 2>&1 >newmodfound \
-  | yad --progress --pulsate --undecorated \
-        --no-buttons --text="<b>Идет поиск обновлений...</b>" --auto-close
+     done >newmodfound
+#kill $notewin
+wt -kill
 
 if [ -s newmodfound ] ; then
-cat newmodfound | yad --title "Обновление модулей" \
+MAIN(){
+cat newmodfound | yad --title "Обновление модулей.pfs" \
                   --height=340 --width=600 --center \
-                  --text "Следующие модули могут быть обновлены:" \
+                  --text "Выберите модули для обновления\nСтарые модули будут переименованы в *.old" \
+		  --window-icon="gtk-refresh" \
+		  --image="gtk-refresh" --image-on-top \
                   --list --checklist \
                   --separator="\n" \
                   --column=:CHK \
-                  --column="Установлен" \
+                  --column="Подключен" \
                   --column="В репозитории" \
                   --column="URL" \
                   --hide-column=4 \
                   --print-column=0 \
-                  --button=gtk-ok --button=gtk-cancel \
-                  --button=gtk-help:"/bin/sh -c \"$INFORM\""
+                  --button=gtk-refresh --button=gtk-cancel \
+                  --button=gtk-help:"3" >/tmp/up
+#                  --button=gtk-help:3 --button=gtk-refresh --button=gtk-cancel >/tmp/up
+}
+MAIN ; [ "$?" = "3" ] && HELP && MAIN #&& exit #&& MAIN
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
-fi \
-   | while read null &&
+fi #\
+cat /tmp/up  | while read null &&
            read oldmod &&
            read newmod &&
            read newmod_url &&
@@ -145,6 +142,7 @@ fi \
             echo "$msg"
             continue
           }
+rm /tmp/up
        wget -c --progress=dot "${newmod_url}" 2>&1 \
        |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
        |yad --progress --title="Загрузка $newmod" \
@@ -177,10 +175,11 @@ fi \
              || { rm newmodfound
                   files=$(ls -1 -I repolist.txt)
                   [ "$files" ] &&
-                    { reportmess="$reportmess\nСледующие модули были загружены, но не перенесены в директорию системы.\nПеренесите их вручную из $tmpdir"
-                      reportmess="$reportmess\n$files"
+                    { reportmess="$reportmess\nОбновлены модули:\n$files
+Модули загружены, но не перенесены в директорию с файлами системы.\nПеренесите их вручную из $tmpdir"
+                      #reportmess="$reportmess\n$files"
                     }
-                  [ "$reportmess" ] && ntf -w "Отчет" "$reportmess" \
+                  [ "$reportmess" ] && ntf -w "Отчет обновления модулей.pfs" "$reportmess" \
                         "\nЧтобы изменения вступили в силу для автоматически загруженных модулей, перезагрузите систему. " \
                         "Если обновился модуль, подключенный вручную, переподключите его."
                   false
