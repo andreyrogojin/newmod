@@ -116,7 +116,7 @@ if [ -s newmodfound ] ; then
                   --hide-column=4 \
                   --print-column=0 \
                   --button=gtk-help:"/bin/sh -c HELP" \
-                  --button=gtk-refresh:0 --button=gtk-cancel
+                  --button=gtk-refresh:0 --button=gtk-cancel:1
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
@@ -141,11 +141,11 @@ fi \
             continue
           }
        wget -c --progress=dot "${newmod_url}" 2>&1 \
-       |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
+       |sed -nu '/%/s/^.* \+\([0-9]\+%\).*$/\1/p;s/^/#/p' \
        |yad --progress --title="Загрузка $newmod" \
-            --height=200 --width=500 --center \
+            --height=50 --width=300 --center \
             --window-icon="gtk-refresh" --image="gtk-refresh" \
-            --auto-close --auto-kill #--enable-log --log-expanded
+            --auto-close --auto-kill #--enable-log #--log-expanded
        wget_status="${PIPESTATUS[0]}"
        [ $wget_status -gt 0 ] &&
          { echo "Сбой загрузки. $newmod загрузить не удалось"
