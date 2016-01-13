@@ -2,7 +2,7 @@
 #160113 sfs ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
-tmpdir="/tmp/mod_update"
+tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
 etime=1800   # repolist.txt expire time. если свежее - не перекачивается
 
 # splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
@@ -38,7 +38,7 @@ ntf -w "Проверка наличия в репозитории обновле
 Перенесите их вручную.
 
 Чтобы изменения вступили в силу - перезагрузите систему"
-}
+}; export -f HELP
 
 # START
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
@@ -111,7 +111,7 @@ if [ -s newmodfound ] ; then
                   --hide-column=4 \
                   --print-column=0 \
                   --button=gtk-refresh --button=gtk-cancel \
-                  --button=gtk-help:"3" >/tmp/up
+                  --button=gtk-help:"/bin/sh -c HELP" >/tmp/up
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
