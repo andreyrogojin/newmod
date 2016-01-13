@@ -3,6 +3,7 @@
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update"
+etime=1800   # repolist.txt expire time. если свежее - не перекачивается
 
 # splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
 # пример: splitname $pfsname modname modver
@@ -26,6 +27,7 @@ splitname(){
 
 # newer <версия1> <версия2> - версия1 больше/новее версии2 ?
 newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
+
 HELP(){
 ntf -w 'Проверка наличия в репозитории обновлений подключенных модулей.pfs.' \
 '
@@ -36,9 +38,8 @@ ntf -w 'Проверка наличия в репозитории обновле
 Перенесите их вручную.
 
 Чтобы изменения вступили в силу - перезагрузите систему' 
-#$0 &
-#exit
 }
+
 # START
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 cd "$tmpdir"
@@ -47,7 +48,7 @@ rm -f *.html newmodfound 2>/dev/null
          { echo "Не могу удалить временные файлы в $tmpdir"; exit 1; }
 
 if [ ! -s repolist.txt ] ||
-   [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -gt 1800 ]; then
+   [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -gt $etime ]; then
   [ -e repolist.txt ] &&
     { rm -f repolist.txt 2>/dev/null ||
       { echo "Не могу удалить старый $tmpdir/repolist.txt"; exit 1; }
@@ -69,9 +70,6 @@ done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
 fi
 
 unset newmod reportmess
-#yad --text="<b>Идет поиск обновлений...</b>" \
-#    --center --no-buttons --undecorated &
-#notewin=$!
 wt -start "Поиск обновлений загруженных модулей.pfs" &
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
@@ -96,12 +94,11 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            newmod=""
         }
      done >newmodfound
-#kill $notewin
 wt -kill
 
 if [ -s newmodfound ] ; then
-MAIN(){
-cat newmodfound | yad --title "Обновление модулей.pfs" \
+    MAIN(){
+        cat newmodfound | yad --title "Обновление модулей.pfs" \
                   --height=340 --width=600 --center \
                   --text "Выберите модули для обновления\nСтарые модули будут переименованы в *.old" \
 		  --window-icon="gtk-refresh" \
@@ -117,13 +114,15 @@ cat newmodfound | yad --title "Обновление модулей.pfs" \
                   --button=gtk-refresh --button=gtk-cancel \
                   --button=gtk-help:"3" >/tmp/up
 #                  --button=gtk-help:3 --button=gtk-refresh --button=gtk-cancel >/tmp/up
-}
-MAIN ; [ "$?" = "3" ] && HELP && MAIN #&& exit #&& MAIN
+    }
+    MAIN ; [ "$?" = "3" ] && HELP && MAIN #&& exit #&& MAIN
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
-fi #\
-cat /tmp/up  | while read null &&
+fi
+
+cat /tmp/up \
+   | while read null &&
            read oldmod &&
            read newmod &&
            read newmod_url &&
@@ -142,7 +141,7 @@ cat /tmp/up  | while read null &&
             echo "$msg"
             continue
           }
-rm /tmp/up
+       rm /tmp/up
        wget -c --progress=dot "${newmod_url}" 2>&1 \
        |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
        |yad --progress --title="Загрузка $newmod" \
@@ -175,9 +174,8 @@ rm /tmp/up
              || { rm newmodfound
                   files=$(ls -1 -I repolist.txt)
                   [ "$files" ] &&
-                    { reportmess="$reportmess\nОбновлены модули:\n$files
-Модули загружены, но не перенесены в директорию с файлами системы.\nПеренесите их вручную из $tmpdir"
-                      #reportmess="$reportmess\n$files"
+                    { reportmess="$reportmess\nОбновлены модули:\n$files\nПеренесите их вручную из $tmpdir"
+                      reportmess="$reportmess\nМодули загружены, но не перенесены в директорию с файлами системы."
                     }
                   [ "$reportmess" ] && ntf -w "Отчет обновления модулей.pfs" "$reportmess" \
                         "\nЧтобы изменения вступили в силу для автоматически загруженных модулей, перезагрузите систему. " \
