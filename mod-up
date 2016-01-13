@@ -110,14 +110,12 @@ if [ -s newmodfound ] ; then
                   --column="URL" \
                   --hide-column=4 \
                   --print-column=0 \
-                  --button=gtk-refresh --button=gtk-cancel \
-                  --button=gtk-help:"/bin/sh -c HELP" >/tmp/up
+                  --button=gtk-help:"/bin/sh -c HELP" \
+                  --button=gtk-refresh --button=gtk-cancel
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
-fi
-
-cat /tmp/up \
+fi \
    | while read null &&
            read oldmod &&
            read newmod &&
@@ -137,7 +135,6 @@ cat /tmp/up \
             echo "$msg"
             continue
           }
-       rm /tmp/up
        wget -c --progress=dot "${newmod_url}" 2>&1 \
        |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
        |yad --progress --title="Загрузка $newmod" \
