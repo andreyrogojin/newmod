@@ -79,9 +79,7 @@ done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
 fi
 
 unset newmod reportmess
-yad --text="<b>Идет поиск обновлений...</b>" \
-    --center --no-buttons --undecorated &
-notewin=$!
+num=0
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
@@ -104,8 +102,11 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            echo "$newmod"
            newmod=""
         }
-     done >newmodfound
-kill $notewin
+        num=$(($num+1))
+        echo "#Проверено $num" >&2
+     done 2>&1 >newmodfound \
+  | yad --progress --pulsate --undecorated \
+        --no-buttons --text="<b>Идет поиск обновлений...</b>" --auto-close
 
 if [ -s newmodfound ] ; then
 cat newmodfound | yad --title "Обновление модулей" \
