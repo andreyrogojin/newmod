@@ -70,7 +70,7 @@ done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
 fi
 
 unset newmod reportmess
-wt -start "Поиск обновлений загруженных модулей.pfs" &
+# wt -start "Поиск обновлений загруженных модулей.pfs" &
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
@@ -93,8 +93,13 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            echo "$newmod"
            newmod=""
         }
-     done >newmodfound
-wt -kill
+        num=$(($num+1))
+        echo "#Проверено $num" >&2
+     done 2>&1 >newmodfound \
+  | yad --progress --pulsate --center --image="gtk-refresh" \
+        --no-buttons --text="<b>Идет поиск обновлений...</b>" \
+        --auto-close --borders=15 --undecorated --skip-taskbar
+# wt -kill
 
 if [ -s newmodfound ] ; then
         cat newmodfound | yad --title "Обновление модулей.pfs" \
@@ -111,7 +116,7 @@ if [ -s newmodfound ] ; then
                   --hide-column=4 \
                   --print-column=0 \
                   --button=gtk-help:"/bin/sh -c HELP" \
-                  --button=gtk-refresh --button=gtk-cancel
+                  --button=gtk-refresh:0 --button=gtk-cancel
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
@@ -139,7 +144,8 @@ fi \
        |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
        |yad --progress --title="Загрузка $newmod" \
             --height=200 --width=500 --center \
-            --auto-close --auto-kill --enable-log #--log-expanded
+            --window-icon="gtk-refresh" --image="gtk-refresh" \
+            --auto-close --auto-kill #--enable-log --log-expanded
        wget_status="${PIPESTATUS[0]}"
        [ $wget_status -gt 0 ] &&
          { echo "Сбой загрузки. $newmod загрузить не удалось"
@@ -156,7 +162,7 @@ fi \
                  echo "$newmod added" >>"${oldmod_dir}/update.log"
                } \
           && mv "$oldmod_fp" "${oldmod_fp}.old" &&
-               { echo "${oldmod_dir}\n${oldmod} ==> ${oldmod}.old"
+               { echo -e "${oldmod_dir}\n${oldmod} ==> ${oldmod}.old"
                  echo "${oldmod} ==> ${oldmod}.old" >>"${oldmod_dir}/update.log"
                } \
           ||  echo "$newmod не удалось перенести в ${oldmod_dir}"
