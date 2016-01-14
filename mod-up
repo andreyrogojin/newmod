@@ -41,6 +41,8 @@ ntf -w "Проверка наличия в репозитории обновле
 }; export -f HELP
 
 # START
+unset background
+[ "$1" == "-b" ] && background="yes"
 [ -d "$tmpdir" ] || mkdir -p "$tmpdir"
 cd "$tmpdir"
 rm -f *.html newmodfound 2>/dev/null
@@ -53,24 +55,31 @@ if [ ! -s repolist.txt ] ||
     { rm -f repolist.txt 2>/dev/null ||
       { echo "Не могу удалить старый $tmpdir/repolist.txt"; exit 1; }
     }
-for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
-  wget -O index.html "$repo" 2>&1
-  sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
-          s|.*href="\(.*\.pfs\)".*|'$repo'/\1|p' index.html \
-    | while read string ; do
+  for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
+    wget -O index.html "$repo" 2>&1
+    sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
+            s|.*href="\(.*\.pfs\)".*|'$repo'/\1|p' index.html \
+      | while read string ; do
           echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
-      done >>repolist.txt
-  rm index.html
-done |sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
+        done >>repolist.txt
+    rm index.html
+  done \
+  |if [ ! "$background" ] ; then
+     sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
      | yad --progress --pulsate \
 	   --window-icon="gtk-refresh" \
            --title="Загрузка списка файлов репозиториев" \
            --height=300 --width=600 --center \
            --auto-close --auto-kill --enable-log --log-expanded
+   else
+     wt -start "Загрузка списков репозиториев"
+     cat >/dev/null
+     wt -kill
+   fi
 fi
 
 unset newmod reportmess
-# wt -start "Поиск обновлений загруженных модулей.pfs" &
+num=0
 cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sed -n 's|^.*/\.\?\(.*\.pfs\)=r.*$|\1|p' \
    | sort \
@@ -81,7 +90,6 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
               { modver="$rver"
                 newmod="$similarpfs"
-                # echo "$newmod" >&2
               }
         done
         [ "$newmod" ] && {
@@ -96,10 +104,15 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
         num=$(($num+1))
         echo "#Проверено $num" >&2
      done 2>&1 >newmodfound \
-  | yad --progress --pulsate --center --image="gtk-refresh" \
-        --no-buttons --text="<b>Идет поиск обновлений...</b>" \
-        --auto-close --borders=15 --undecorated --skip-taskbar
-# wt -kill
+  |if [ ! "$background" ] ; then
+      yad --progress --pulsate --center --image="gtk-refresh" \
+          --no-buttons --text="<b>Идет поиск обновлений...</b>" \
+          --auto-close --borders=15 --undecorated --skip-taskbar
+   else
+      wt -start "Поиск обновленных модулей"
+      cat >/dev/null
+      wt -kill
+   fi
 
 if [ -s newmodfound ] ; then
         cat newmodfound | yad --title "Обновление модулей.pfs" \
@@ -116,7 +129,8 @@ if [ -s newmodfound ] ; then
                   --hide-column=4 \
                   --print-column=0 \
                   --button=gtk-help:"/bin/sh -c HELP" \
-                  --button=gtk-refresh:0 --button=gtk-cancel:1
+                  --button="Обновить модули"\!gtk-refresh\!"Выбранные обновления будут загружены":0 \
+                  --button=gtk-cancel:1
 else
     ntf -w "Обновленых модулей не найдено"
     exit 0
