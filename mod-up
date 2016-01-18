@@ -1,5 +1,6 @@
 #!/bin/bash
-#160113 sfs ander
+#160113 sfs
+#160114 ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
@@ -132,7 +133,9 @@ if [ -s newmodfound ] ; then
                   --button="Обновить модули"\!gtk-refresh\!"Выбранные обновления будут загружены":0 \
                   --button=gtk-cancel:1
 else
-    ntf -w "Обновленых модулей не найдено"
+    [ ! "$background" ] \
+    && ntf -w "Обновленых модулей не найдено" \
+    || ntf -i "Обновленых модулей не найдено"
     exit 0
 fi \
    | while read null &&
