@@ -1,6 +1,6 @@
 #!/bin/bash
 #160113 sfs
-#160114 ander
+#160121 ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
@@ -11,7 +11,8 @@ etime=1800   # repolist.txt expire time. если свежее - не перек
 splitname(){
   local ver sver
   ver=$(echo "$1" \
-        |sed 's/i[3-6]86\|x86[_-]64\|x64\|[Xx][Ff][_-]\?86\|[Qq][Tt]4/masq/g' \
+        |sed 's/i[3-6]86\|x86[_-]64\|x64\|[Xx][Ff][_-]\?86\|[Qq][Tt]4/masq/g
+              s/_64/_masq/g' \
         |grep -oE '[_-]([A-Za-z]{0,2}[0-9][a-z0-9]*[_.+-])+')
   local re1='\(.*\)' re2='\1' n=1 partver
   for partver in $ver ; do
