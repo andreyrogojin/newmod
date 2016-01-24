@@ -1,5 +1,5 @@
 #!/bin/bash
-#160113 sfs
+#160123 sfs
 #160114 ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
@@ -30,7 +30,7 @@ splitname(){
 newer(){ [ "$1" != "$2" -a $(echo -e "$1\n$2"|sort -V|tail -1) == "$1" ] ; }
 
 HELP(){
-ntf -w "Проверка наличия в репозитории обновлений подключенных модулей.pfs." \
+ntf -w "Поиск в репозитории обновленных версий подключенных модулей.pfs." \
 "
 Свежий модуль, по Вашему выбору, будет загружены в директорию с устаревшим модулем.
 Устаревший модуль переименовывается в *.old.
@@ -73,7 +73,7 @@ if [ ! -s repolist.txt ] ||
            --height=300 --width=600 --center \
            --auto-close --auto-kill --enable-log --log-expanded
    else
-     wt -start "Загрузка списков репозиториев"
+     [ "$background" ] || wt -start "Загрузка списков репозиториев"
      cat >/dev/null
      wt -kill
    fi
@@ -110,7 +110,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
           --no-buttons --text="<b>Идет поиск обновлений...</b>" \
           --auto-close --borders=15 --undecorated --skip-taskbar
    else
-      wt -start "Поиск обновленных модулей"
+      [ "$background" ] || wt -start "Поиск обновленных модулей"
       cat >/dev/null
       wt -kill
    fi
@@ -133,9 +133,8 @@ if [ -s newmodfound ] ; then
                   --button="Обновить модули"\!gtk-refresh\!"Выбранные обновления будут загружены":0 \
                   --button=gtk-cancel:1
 else
-    [ ! "$background" ] \
-    && ntf -w "Обновленых модулей не найдено" \
-    || ntf -i "Обновленых модулей не найдено"
+    [ "$background" ] && n=i || n=w
+    ntf -$n "Поиск в репозитории обновленных версий подключенных модулей.pfs." "Обновлений не найдено" 
     exit 0
 fi \
    | while read null &&
