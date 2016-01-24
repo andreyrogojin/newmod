@@ -39,13 +39,13 @@ ntf -w "Поиск в репозитории обновленных версий
 Если эта директория недоступна для записи - загруженные свежие модули останутся в $tmpdir
 Перенесите их вручную.
 
-Чтобы изменения вступили в силу - перезагрузите систему"
+Чтобы изменения вступили в силу - перезагрузите систему" >/dev/null
 }; export -f HELP
 
 # START
 unset background
 [ "$1" == "-b" ] && background="yes"
-[ -d "$tmpdir" ] || mkdir -p "$tmpdir"
+[ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
 cd "$tmpdir"
 rm -f *.html newmodfound 2>/dev/null
 [ "$(ls *.html newmodfound 2>/dev/null)" ] &&
@@ -187,7 +187,7 @@ fi \
        [ "$copied" ] && rm "$newmod"
      done \
      | while read mess \
-             || { rm newmodfound
+             || { rm -f newmodfound
                   files=$(ls -1 -I repolist.txt)
                   [ "$files" ] &&
                     { reportmess="$reportmess\nОбновлены модули:\n$files\nПеренесите их вручную из $tmpdir"
