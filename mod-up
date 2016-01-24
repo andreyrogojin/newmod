@@ -1,6 +1,6 @@
 #!/bin/bash
 #160123 sfs
-#160114 ander
+#160124 ander
 repolist="/etc/sfs-get/www.list"
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
@@ -73,9 +73,9 @@ if [ ! -s repolist.txt ] ||
            --height=300 --width=600 --center \
            --auto-close --auto-kill --enable-log --log-expanded
    else
-     [ "$background" ] || wt -start "Загрузка списков репозиториев"
+     # wt -start "Загрузка списков репозиториев"
      cat >/dev/null
-     wt -kill
+     # wt -kill
    fi
 fi
 
@@ -110,9 +110,9 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
           --no-buttons --text="<b>Идет поиск обновлений...</b>" \
           --auto-close --borders=15 --undecorated --skip-taskbar
    else
-      [ "$background" ] || wt -start "Поиск обновленных модулей"
+      # wt -start "Поиск обновленных модулей"
       cat >/dev/null
-      wt -kill
+      # wt -kill
    fi
 
 if [ -s newmodfound ] ; then
