@@ -1,6 +1,6 @@
 #!/bin/bash
-#160123 sfs
 #160202 ander
+#160202a sfs
 repolist="/etc/sfs-get/www.list"        # список url репозиториев
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
@@ -42,8 +42,8 @@ ntf -w "Поиск в репозитории обновленных версий
 
 Чтобы изменения вступили в силу - перезагрузите систему.
 
-Если вы хотите видеть предложение обновить именно на эту конкретную версию,
-отметьте ее в правой колонке для занесения в черный список." >/dev/null
+Если Вы не хотите видеть предложение обновить именно на эту конкретную версию,\
+ отметьте ее в колонке ЧС  для занесения в черный список (находится в modules/mod-up.blacklist)." >/dev/null
 }; export -f HELP
 
 # START
@@ -124,7 +124,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
 if [ -s newmodfound ] ; then
         cat newmodfound | yad --title "Обновление модулей.pfs" \
                   --height=340 --width=600 --center \
-                  --text "Выберите модули для обновления\nСтарые модули будут переименованы в *.old" \
+                  --text "Выберите модули для обновления\nСтарые модули будут переименованы в *.old\nЧС - черный список" \
 		  --window-icon="gtk-refresh" \
 		  --image="gtk-refresh" --image-on-top \
                   --list --checklist \
@@ -138,11 +138,12 @@ if [ -s newmodfound ] ; then
                   --print-column=0 \
                   --print-all \
                   --button=gtk-help:"/bin/sh -c HELP" \
-                  --button="Обновить модули"\!gtk-refresh\!"Выбранные обновления будут загружены":0 \
+                  --button="Выполнить"\!gtk-refresh\!"Выбранные обновления будут загружены или модуль будет занесен в ЧС":0 \
                   --button=gtk-cancel:1
 else
     [ "$background" ] && n=i || n=w
-    ntf -$n "Поиск в репозитории обновленных версий подключенных модулей.pfs." "Обновлений не найдено" 
+    ntf -$n "Поиск в репозитории обновленных"$'\n'"версий подключенных модулей.pfs." \
+            "Обновлений не найдено" 
     exit 0
 fi \
    | while read checked &&
