@@ -93,13 +93,15 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
         splitname $pfsname modname modver
         for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
            splitname $(basename "$similarpfs") rname rver
-           [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
-              { modver="$rver"
+           [ "$modname" == "$rname" ] \
+           && newer "$rver" "$modver" \
+           && ! grep -q "$(basename "$similarpfs")" "$blacklistfile" 2>/dev/null \
+           && { modver="$rver"   # берем, если имя пакета то же, версия новее и данный файл не в ЧС
                 newmod="$similarpfs"
                 newmod_basename=$(basename "$newmod")
               }
         done
-        [ "$newmod" ] && ! grep -q "$newmod_basename" "$blacklistfile" 2>/dev/null  && {
+        [ "$newmod" ] && {
            # если модуль есть в нескольких репозиториях - возьмем из первого по списку
            newmod=$(grep -m 1 "$newmod_basename" repolist.txt)
            echo "false"
