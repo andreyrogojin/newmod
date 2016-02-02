@@ -1,9 +1,10 @@
 #!/bin/bash
 #160123 sfs
-#160124 ander
-repolist="/etc/sfs-get/www.list"
+#160202 ander
+repolist="/etc/sfs-get/www.list"        # список url репозиториев
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
+blacklistfile="$sysdir"/modules/mod-up.blacklist  # если новый модуль присутствует в этом списке - будет игнорироваться
 etime=1800   # repolist.txt expire time. если свежее - не перекачивается
 
 # splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
@@ -39,7 +40,10 @@ ntf -w "Поиск в репозитории обновленных версий
 Если эта директория недоступна для записи - загруженные свежие модули останутся в $tmpdir
 Перенесите их вручную.
 
-Чтобы изменения вступили в силу - перезагрузите систему" >/dev/null
+Чтобы изменения вступили в силу - перезагрузите систему.
+
+Если вы хотите видеть предложение обновить именно на эту конкретную версию,
+отметьте ее в правой колонке для занесения в черный список." >/dev/null
 }; export -f HELP
 
 # START
@@ -92,14 +96,15 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            [ "$modname" == "$rname" ] && newer "$rver" "$modver" &&
               { modver="$rver"
                 newmod="$similarpfs"
+                newmod_basename=$(basename "$newmod")
               }
         done
-        [ "$newmod" ] && {
+        [ "$newmod" ] && ! grep -q "$newmod_basename" "$blacklistfile" 2>/dev/null  && {
            # если модуль есть в нескольких репозиториях - возьмем из первого по списку
-           newmod=$(grep -m 1 $(basename "$newmod") repolist.txt)
+           newmod=$(grep -m 1 "$newmod_basename" repolist.txt)
            echo "false"
            echo "$pfsname"
-           basename "$newmod"
+           echo "$newmod_basename"
            echo "$newmod"
            newmod=""
         }
@@ -124,12 +129,14 @@ if [ -s newmodfound ] ; then
 		  --image="gtk-refresh" --image-on-top \
                   --list --checklist \
                   --separator="\n" \
-                  --column=:CHK \
+                  --column="Обновить":CHK \
                   --column="Подключен" \
                   --column="В репозитории" \
                   --column="URL" \
+                  --column="в ЧС":CHK \
                   --hide-column=4 \
                   --print-column=0 \
+                  --print-all \
                   --button=gtk-help:"/bin/sh -c HELP" \
                   --button="Обновить модули"\!gtk-refresh\!"Выбранные обновления будут загружены":0 \
                   --button=gtk-cancel:1
@@ -138,11 +145,15 @@ else
     ntf -$n "Поиск в репозитории обновленных версий подключенных модулей.pfs." "Обновлений не найдено" 
     exit 0
 fi \
-   | while read null &&
+   | while read checked &&
            read oldmod &&
            read newmod &&
            read newmod_url &&
+           read to_blacklist
            read null; do
+       [ "$to_blacklist" == "TRUE" ] && echo "$newmod" >>"$blacklistfile" && continue
+       [ "$checked" == "FALSE" ] && continue
+       # может быть модуль уже загружен, но не подключен?
        foundinlocaldir=$(for i in $(find "$sysdir" -mindepth 2 -type f -name "$newmod")
                          do dirname $i; done)
        [ "$foundinlocaldir" ] &&
