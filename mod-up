@@ -137,6 +137,7 @@ if [ -s newmodfound ] ; then
                   --column="URL" \
                   --column="в ЧС":CHK \
                   --hide-column=4 \
+                  --expand-column=3 \
                   --print-column=0 \
                   --print-all \
                   --button=gtk-help:"/bin/sh -c HELP" \
