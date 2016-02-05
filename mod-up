@@ -1,6 +1,6 @@
 #!/bin/bash
 #160202 ander
-#160202a sfs
+#160206 sfs
 repolist="/etc/sfs-get/www.list"        # список url репозиториев
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
@@ -49,6 +49,16 @@ ntf -w "Поиск в репозитории обновленных версий
 # START
 unset background
 [ "$1" == "-b" ] && background="yes"
+
+NOINET(){
+[ "$background" ] && exit
+ntf -a "Поиск в репозитории обновленных версий подключенных модулей.pfs." "Отсутствует подключение к интернет" ; exit
+}
+if [ "$background" ] ;then
+    ping -c 2 -W 3 8.8.8.8 || NOINET
+else wt -s "ping -c 2 -W 3 8.8.8.8" || NOINET
+fi
+
 [ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
 cd "$tmpdir"
 rm -f *.html newmodfound 2>/dev/null
