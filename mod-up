@@ -173,7 +173,7 @@ fi \
             continue
           }
        wget -c --progress=dot "${newmod_url}" 2>&1 \
-       |sed -nu '/%/s/^.* \+\([0-9]\+%\).*$/\1/p;s/^/#/p' \
+       |sed -nu '/%/s/^.* \+\([0-9]\+%\).*$/\1/p;/%/s/^/#/p' \
        |yad --progress --title="Загрузка $newmod" \
             --height=50 --width=300 --center \
             --window-icon="gtk-refresh" --image="gtk-refresh" \
