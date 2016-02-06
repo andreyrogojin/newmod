@@ -50,13 +50,6 @@ ntf -w "Поиск в репозитории обновленных версий
 unset background
 [ "$1" == "-b" ] && background="yes"
 
-ping -c 2 -W 3 8.8.8.8 \
-    || { [ "$background" ] \
-	    || ntf -a "Поиск в репозитории обновленных версий подключенных модулей.pfs." \
-                      "Отсутствует подключение к интернет"
-         exit
-       }
-
 [ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
 cd "$tmpdir"
 rm -f *.html newmodfound 2>/dev/null
@@ -91,6 +84,8 @@ if [ ! -s repolist.txt ] ||
      # wt -kill
    fi
 fi
+
+[ -s repolist.txt ] || exit 1  # не удалось скачать список файлов в репозитории
 
 unset newmod reportmess
 num=0
