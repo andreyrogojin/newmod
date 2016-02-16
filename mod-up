@@ -111,6 +111,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
            echo "$pfsname"
            echo "$newmod_basename"
            echo "$newmod"
+           echo "false"
            newmod=""
         }
         num=$(($num+1))
