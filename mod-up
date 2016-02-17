@@ -1,5 +1,5 @@
 #!/bin/bash
-#160202 ander
+#160217 ander
 #160206 sfs
 repolist="/etc/sfs-get/www.list"        # список url репозиториев
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
@@ -65,7 +65,8 @@ if [ ! -s repolist.txt ] ||
   for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
     wget -O index.html "$repo" 2>&1
     sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
-            s|.*href="\(.*\.pfs\)".*|'$repo'/\1|p' index.html \
+            s|</li>|0 0 ?M|
+            s|.*href="\(.*\.pfs\)".*</a> *\([^ ]*\) *[^ ]* *\([^ ]*\)$|'$repo'/\1 \2 \3|p' index.html \
       | while read string ; do
           echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
         done >>repolist.txt
@@ -94,7 +95,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
    | sort \
    | while read pfsname ; do
         splitname $pfsname modname modver
-        for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname"); do
+        for similarpfs in $(grep "$modname" repolist.txt |grep -v "$pfsname" |cut -d' ' -f1); do
            splitname $(basename "$similarpfs") rname rver
            [ "$modname" == "$rname" ] \
            && newer "$rver" "$modver" \
@@ -106,7 +107,7 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
         done
         [ "$newmod" ] && {
            # если модуль есть в нескольких репозиториях - возьмем из первого по списку
-           newmod=$(grep -m 1 "$newmod_basename" repolist.txt)
+           newmod=$(grep -m 1 "$newmod_basename" repolist.txt |cut -d' ' -f1)
            echo "false"
            echo "$pfsname"
            echo "$newmod_basename"
