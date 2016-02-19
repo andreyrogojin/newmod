@@ -1,0 +1,59 @@
+#!/bin/bash
+#160219 ander
+
+repolist="/etc/sfs-get/www.list"        # список url репозиториев
+etime=18000   # (5 часов) repolist.txt expire time. если свежее - не перекачивается
+[ "$tmpdir" ] || tmpdir="/tmp/mod_update"
+
+[ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
+cd "$tmpdir"
+
+# На всякий случай, чтобы лишних файлов не оставлял
+trap 'rm -f repolist.txt.new index.html' TERM
+
+[ -e repolist.txt.new ] \
+ && if [ $(( $(date "+%s") - $(date -r repolist.txt.new "+%s") )) -lt 120 ]
+    then # похоже, уже выполняется, подождем
+	while [ -e repolist.txt.new ] &&
+	      [ $(( $(date "+%s") - $(date -r repolist.txt.new "+%s") )) -lt 120 ]
+	do sleep 5; done
+	[ -e repolist.txt.new ] &&
+	  { echo "Проблемы с обновлением списка файлов в репозитории"
+	    echo "Нет связи?"
+	    exit 1
+	  }
+    else # файл уже старый, скорее всего от зависшего процесса
+	rm -f repolist.txt.new 2>/dev/null ||
+	  { echo "Не могу удалить старый $tmpdir/repolist.txt.new"; exit 1; }
+    fi
+
+[ -s repolist.txt ] \
+&& [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -lt $etime ] \
+&& exit 0   # список не пустой и не устарел - перекачивать не нужно
+
+for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
+    wget -O index.html "$repo" 2>&1
+    sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
+            s|</li>|0 0 ?M|
+            s|.*href="\(.*\.pfs\)".*</a> *\([^ ]*\) *[^ ]* *\([^ ]*\)$|'$repo'/\1 \2 \3|p' index.html \
+      | while read string ; do
+          echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
+        done >>repolist.txt.new
+    rm index.html
+done \
+|if [ ! "$background" ] ; then
+     sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
+     | yad --progress --pulsate \
+	   --window-icon="gtk-refresh" \
+           --title="Загрузка списка файлов репозиториев" \
+           --height=300 --width=600 --center \
+           --auto-close --auto-kill --enable-log --log-expanded
+ else
+     # wt -start "Загрузка списков репозиториев"
+     cat >/dev/null
+     # wt -kill
+ fi
+
+[ -s repolist.txt.new ] && mv -f repolist.txt.new repolist.txt
+# если все нормально - выход будет нулевой
+# а ненулевой - значит, обновить не удалось
