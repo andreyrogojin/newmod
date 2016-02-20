@@ -1,11 +1,9 @@
 #!/bin/bash
-#160217 ander
+#160219 ander
 #160206 sfs
-repolist="/etc/sfs-get/www.list"        # список url репозиториев
 sysdir=$(dirname $(realpath /mnt/live/porteus/modules))
 tmpdir="/tmp/mod_update" ; export tmpdir  # экспорт - для работы справки
 blacklistfile="$sysdir"/modules/mod-up.blacklist  # если новый модуль присутствует в этом списке - будет игнорироваться
-etime=1800   # repolist.txt expire time. если свежее - не перекачивается
 
 # splitname <разбираемое имя файла> <переменная под имя> <переменная под версию>
 # пример: splitname $pfsname modname modver
@@ -48,7 +46,7 @@ ntf -w "Поиск в репозитории обновленных версий
 
 # START
 unset background
-[ "$1" == "-b" ] && background="yes"
+[ "$1" == "-b" ] && export background="yes"  # export - для getrepolist
 
 [ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
 cd "$tmpdir"
@@ -56,37 +54,7 @@ rm -f *.html newmodfound 2>/dev/null
 [ "$(ls *.html newmodfound 2>/dev/null)" ] &&
          { echo "Не могу удалить временные файлы в $tmpdir"; exit 1; }
 
-if [ ! -s repolist.txt ] ||
-   [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -gt $etime ]; then
-  [ -e repolist.txt ] &&
-    { rm -f repolist.txt 2>/dev/null ||
-      { echo "Не могу удалить старый $tmpdir/repolist.txt"; exit 1; }
-    }
-  for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
-    wget -O index.html "$repo" 2>&1
-    sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
-            s|</li>|0 0 ?M|
-            s|.*href="\(.*\.pfs\)".*</a> *\([^ ]*\) *[^ ]* *\([^ ]*\)$|'$repo'/\1 \2 \3|p' index.html \
-      | while read string ; do
-          echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
-        done >>repolist.txt
-    rm index.html
-  done \
-  |if [ ! "$background" ] ; then
-     sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
-     | yad --progress --pulsate \
-	   --window-icon="gtk-refresh" \
-           --title="Загрузка списка файлов репозиториев" \
-           --height=300 --width=600 --center \
-           --auto-close --auto-kill --enable-log --log-expanded
-   else
-     # wt -start "Загрузка списков репозиториев"
-     cat >/dev/null
-     # wt -kill
-   fi
-fi
-
-[ -s repolist.txt ] || exit 1  # не удалось скачать список файлов в репозитории
+getrepolist || exit 1  # не удалось скачать список файлов в репозитории
 
 unset newmod reportmess
 num=0
@@ -108,10 +76,15 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
         [ "$newmod" ] && {
            # если модуль есть в нескольких репозиториях - возьмем из первого по списку
            newmod=$(grep -m 1 "$newmod_basename" repolist.txt |cut -d' ' -f1)
+           # а размер возьмем тот, который не '?M'
+           newmod_size=$(grep "$newmod_basename" repolist.txt |cut -d' ' -f3 \
+                         |grep -v '\?M$'|head -n 1)
+           [ "$newmod_size" ] || newmod_size="-"
            echo "false"
            echo "$pfsname"
            echo "$newmod_basename"
            echo "$newmod"
+           echo "$newmod_size"
            echo "false"
            newmod=""
         }
@@ -130,16 +103,17 @@ cat $( ls -1 /sys/fs/aufs/*/br[0-9]* ) \
 
 if [ -s newmodfound ] ; then
         cat newmodfound | yad --title "Обновление модулей.pfs" \
-                  --height=340 --width=600 --center \
+                  --height=340 --width=660 --center \
                   --text "Выберите модули для обновления\nСтарые модули будут переименованы в *.old\nЧС - черный список" \
 		  --window-icon="gtk-refresh" \
 		  --image="gtk-refresh" --image-on-top \
                   --list --checklist \
                   --separator="\n" \
-                  --column="Обновить":CHK \
+                  --column="V":CHK \
                   --column="Подключен" \
                   --column="В репозитории" \
                   --column="URL" \
+                  --column="" \
                   --column="в ЧС":CHK \
                   --hide-column=4 \
                   --expand-column=3 \
@@ -158,6 +132,7 @@ fi \
            read oldmod &&
            read newmod &&
            read newmod_url &&
+           read newmod_size &&
            read to_blacklist
            read null; do
        [ "$to_blacklist" == "TRUE" ] && echo "$newmod" >>"$blacklistfile" && continue
@@ -180,7 +155,7 @@ fi \
        wget -c --progress=dot "${newmod_url}" 2>&1 \
        |sed -nu '/%/s/^.* \+\([0-9]\+%\).*$/\1/p;/%/s/^/#/p' \
        |yad --progress --title="Загрузка $newmod" \
-            --height=50 --width=300 --center \
+            --height=50 --width=350 --center \
             --window-icon="gtk-refresh" --image="gtk-refresh" \
             --auto-close --auto-kill #--enable-log #--log-expanded
        wget_status="${PIPESTATUS[0]}"
