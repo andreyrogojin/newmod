@@ -42,7 +42,7 @@ for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
     rm index.html
 done \
 |if [ ! "$background" ] ; then
-     sed -nu 's/^/#/p;/%/s/^.* \+\([0-9]\+%\).*$/\1/p' \
+     sed -u 's/^/#/' \
      | yad --progress --pulsate \
 	   --window-icon="gtk-refresh" \
            --title="Загрузка списка файлов репозиториев" \
