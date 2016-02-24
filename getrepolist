@@ -2,11 +2,20 @@
 #160219 ander
 
 repolist="/etc/sfs-get/www.list"        # список url репозиториев
-etime=18000   # (5 часов) repolist.txt expire time. если свежее - не перекачивается
+[ "$etime" ]  || etime=18000   # (5 часов) repolist.txt expire time. если свежее - не перекачивается
 [ "$tmpdir" ] || tmpdir="/tmp/mod_update"
-
 [ -d "$tmpdir" ] || mkdir -p -m 777 "$tmpdir"
 cd "$tmpdir"
+
+# разбор ключей ком.строки
+while getopts ":be:f" opt; do
+  case "$opt" in
+    "b") background="yes" ;;
+    "e") etime="$OPTARG" ;;
+    "f") etime=0 ;;
+    ":") [ "$OPTARG" == "e" ] && etime=0 ;;
+  esac
+done
 
 # На всякий случай, чтобы лишних файлов не оставлял
 trap 'rm -f repolist.txt.new index.html' TERM
