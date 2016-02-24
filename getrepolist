@@ -57,8 +57,9 @@ trap 'rm -f repolist.txt.new index.html' TERM
 && [ $(( $(date "+%s") - $(date -r repolist.txt "+%s") )) -lt $etime ] \
 && exit 0   # список не пустой и не устарел - перекачивать не нужно
 
-for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
-    wget -O index.html "$repo" 2>&1
+{ for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
+    echo "#$repo"
+    wget -O index.html "$repo" &>/dev/null
     sed -n 's|%\([[:xdigit:]]\{2\}\)|\\\\x\1|g
             s|</li>|0 0 ?M|
             s|.*href="\(.*\.pfs\)".*</a> *\([^ ]*\) *[^ ]* *\([^ ]*\)$|'$repo'/\1 \2 \3|p' index.html \
@@ -66,19 +67,19 @@ for repo in $(sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d' "$repolist"); do
           echo -e "$string"  # '%2b' -> "sed" -> '\x2b' -> "echo -e" -> '+'
         done >>repolist.txt.new
     rm index.html
-done \
-|if [ ! "$background" ] ; then
-     sed -u 's/^/#/' \
-     | yad --progress --pulsate \
+  done
+  echo "100%"
+} |if [ ! "$background" ] ; then
+     yad --progress --pulsate \
 	   --window-icon="gtk-refresh" \
            --title="Загрузка списка файлов репозиториев" \
-           --height=300 --width=600 --center \
-           --auto-close --auto-kill --enable-log --log-expanded
- else
+           --height=50 --width=600 --center \
+           --auto-close --auto-kill
+   else
      # wt -start "Загрузка списков репозиториев"
      cat >/dev/null
      # wt -kill
- fi
+   fi
 
 [ -s repolist.txt.new ] && mv -f repolist.txt.new repolist.txt
 # если все нормально - выход будет нулевой
